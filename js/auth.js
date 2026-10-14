@@ -238,7 +238,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (forgotLink) {
     forgotLink.addEventListener('click', (e) => {
       e.preventDefault();
-      msToast('Función disponible próximamente', 'ℹ️');
+      // Lleva el correo ya escrito (sin ponerlo en la URL) para no tener que repetirlo
+      const email = (document.getElementById('email')?.value || '').trim();
+      try {
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) sessionStorage.setItem('ms_recuperar_email', email);
+      } catch (err) { /* sin almacenamiento: no pasa nada */ }
+      window.location.href = 'recuperar.html';
     });
   }
 });
