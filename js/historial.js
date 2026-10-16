@@ -328,7 +328,11 @@ msAlCargar(() => {
     const id = detailSheet.dataset.id;
     switch (btn.dataset.act) {
       case 'close': detailModal.classList.remove('show'); break;
-      case 'edit': openDetail(id, 'editar'); break;
+      case 'edit': {
+        const r = records.find(x => String(x.id) === String(id));
+        if (r) window.location.href = `registro.html?editar=${encodeURIComponent(r.id)}&tab=${r.type}`;
+        break;
+      }
       case 'cancel': openDetail(id, 'ver'); break;
       case 'ask-delete': openDetail(id, 'borrar'); break;
       case 'save': {

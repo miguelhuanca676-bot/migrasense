@@ -20,6 +20,19 @@ msAlCargar(() => {
   const urlTab = new URLSearchParams(window.location.search).get('tab');
   if (urlTab === 'episodio') setTab('episodio');
 
+  /* Edición desde el historial: se reutiliza el formulario original. */
+  const editarId = new URLSearchParams(window.location.search).get('editar');
+  const registroEditado = editarId ? MS.get(MS_KEYS.RECORDS, []).find(x => String(x.id) === editarId) : null;
+  if (editarId && !registroEditado) {
+    msToast('No se encontró el registro para editar', '⚠️');
+    window.location.href = 'historial.html';
+    return;
+  }
+  if (registroEditado) {
+    setTab(registroEditado.type);
+    tabBtns.forEach(b => { if (b.dataset.tab !== registroEditado.type) b.style.display = 'none'; });
+  }
+
   /* ---------- Fecha/hora actual por defecto en episodio ---------- */
   const epFecha = document.getElementById('epFecha');
   const epHoraInicio = document.getElementById('epHoraInicio');
@@ -180,6 +193,52 @@ msAlCargar(() => {
   bindScale('prodIntensidad', 'prodValue', 'prodCaption');
   bindScale('epIntensidad', 'epValue', 'epCaption');
 
+  /* Rellenar todos los campos al editar, manteniendo el diseño existente. */
+  if (registroEditado) {
+    const r = registroEditado;
+    const seleccionar = (contenedor, valores) => {
+      const elegidos = (valores || []).map(v => String(v).toLowerCase());
+      contenedor.querySelectorAll('[data-value]').forEach(el => {
+        const codigo = el.dataset.value.toLowerCase();
+        const catalogo = [...MS_PRODROMICOS, ...MS_TRIGGERS].find(x => x.id === codigo);
+        const activo = elegidos.includes(codigo) || (catalogo && elegidos.includes(catalogo.label.toLowerCase()));
+        const input = el.querySelector('input');
+        if (input) input.checked = !!activo;
+        el.classList.toggle('selected', !!activo);
+      });
+    };
+    const inicio = new Date(r.inicio || r.date);
+    if (r.type === 'episodio') {
+      document.getElementById('epIntensidad').value = r.intensidad || 6;
+      document.getElementById('epIntensidad').dispatchEvent(new Event('input'));
+      if (!Number.isNaN(inicio.getTime())) {
+        epFecha.value = `${inicio.getFullYear()}-${pad(inicio.getMonth()+1)}-${pad(inicio.getDate())}`;
+        epHoraInicio.value = hhmm(inicio);
+        const fin = r.fin ? new Date(r.fin) : new Date(inicio.getTime() + (Number(r.duracionMinutos) || 60)*60000);
+        epHoraFin.value = hhmm(fin);
+        actualizarDuracion();
+      }
+      seleccionar(epSintomas, r.sintomas);
+      seleccionar(epDisparadores, r.disparadores);
+      seleccionar(document.getElementById('epMedicacion'), [r.medicacion ? 'si' : 'no']);
+      epMedNombreWrap.style.display = r.medicacion ? '' : 'none';
+      document.getElementById('epMedNombre').value = r.medicamento || '';
+      document.getElementById('epNotas').value = r.notas || '';
+      document.getElementById('saveEpisodio').textContent = 'Guardar cambios';
+    } else {
+      seleccionar(prodromicoChecklist, r.sintomas);
+      document.getElementById('prodIntensidad').value = r.intensidad || 4;
+      document.getElementById('prodIntensidad').dispatchEvent(new Event('input'));
+      document.getElementById('prodNotas').value = r.notas || '';
+      if (!Number.isNaN(inicio.getTime())) {
+        seleccionar(prodHoraModo, ['otra']);
+        prodHoraWrap.style.display = '';
+        prodHora.value = hhmm(inicio);
+      }
+      document.getElementById('saveProdromico').textContent = 'Guardar cambios';
+    }
+  }
+
   /* ---------- Guardar: síntoma prodrómico (uno solo, con hora de aparición) ---------- */
   document.getElementById('saveProdromico').addEventListener('click', () => {
     const sel = prodromicoChecklist.querySelector('.option-card.selected');
@@ -210,7 +269,7 @@ msAlCargar(() => {
     if (btn.getAttribute('aria-busy') === 'true') return;
     const texto = btn.textContent;
     btn.setAttribute('aria-busy', 'true'); btn.textContent = 'Guardando…';
-    MSApi.crearRegistro(tipo, datos)
+    (registroEditado ? MSApi.editarRegistro(registroEditado, datos) : MSApi.crearRegistro(tipo, datos))
       .then(() => {
         msToast(mensaje, '📝');
         setTimeout(() => { window.location.href = 'historial.html'; }, 700);
