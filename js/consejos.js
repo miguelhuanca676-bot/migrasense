@@ -85,11 +85,20 @@
   const medico =
     h('¿Qué son los síntomas prodrómicos?') +
     `<p>Son señales que algunas personas experimentan horas o incluso días antes de una migraña. No todas las personas presentan los mismos síntomas y no siempre anuncian un episodio.</p>` +
-    `<img src="${IMG}ej-respiracion.jpg" alt="Persona practicando respiración y relajación" loading="lazy" style="width:100%;max-width:360px;border-radius:14px;margin:12px 0;">` +
+    h('¿Cuándo pueden aparecer?') +
+    `<p>La fase prodrómica puede comenzar varias horas o hasta uno o dos días antes del dolor. Identificar cambios repetidos ayuda a reconocer tus patrones personales, aunque no permite asegurar cuándo aparecerá una crisis.</p>` +
     h('Síntomas prodrómicos más comunes') +
     ul(['Bostezos frecuentes y cansancio.','Cambios de ánimo o irritabilidad.','Rigidez en el cuello.','Dificultad para concentrarse.','Antojos o cambios de apetito.','Sensibilidad a la luz o al ruido.']) +
+    h('Pródromo, aura y dolor: ¿en qué se diferencian?') +
+    `<p>El pródromo incluye cambios generales como cansancio, bostezos o dificultad para concentrarse. El aura puede incluir destellos, puntos ciegos, hormigueos o cambios en el habla y suele durar entre 5 y 60 minutos. Muchas personas tienen migraña sin aura.</p>` +
+    h('Otros cambios que pueden aparecer') +
+    ul(['Mayor sed o necesidad de orinar.','Cambios en la energía, como fatiga o inquietud.','Estreñimiento o molestias digestivas.','Mayor sensibilidad a olores.']) +
+    h('Cómo llevar un registro útil') +
+    `<p>Anota qué sentiste, a qué hora comenzó, cuánto duró, cómo dormiste y si después apareció dolor de cabeza. Comparar varios registros puede ayudarte a reconocer señales que se repiten.</p>` +
     h('¿Qué hacer si los notas?') +
     ul(['Registra los síntomas y la hora en MigraSense.','Procura descansar, hidratarte y mantener tus rutinas.','Identifica patrones personales sin asumir que predicen con certeza una migraña.']) +
+    h('¿Cuándo buscar ayuda?') +
+    `<p>Consulta con un profesional si los episodios son nuevos, frecuentes o afectan tus actividades. Un dolor súbito e intenso, pérdida de fuerza, dificultad para hablar o cambios neurológicos nuevos requieren valoración urgente.</p>` +
     note('El aura es diferente del pródromo: puede causar alteraciones visuales o sensitivas. Si aparecen síntomas neurológicos nuevos o repentinos, busca evaluación médica.', 'warn');
 
   const SECCIONES = [

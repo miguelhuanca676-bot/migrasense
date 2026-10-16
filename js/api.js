@@ -197,12 +197,16 @@ const MSApi = (() => {
 
   // Recordatorios: se envían agrupados (si la persona toca varios interruptores seguidos)
   let recTimer = null;
+  let recVersion = 0;
+  let recQueue = Promise.resolve();
   function enviarRecordatorios(s) {
     clearTimeout(recTimer);
+    const version = ++recVersion;
     recTimer = setTimeout(() => {
-      req('PUT', '/recordatorios', { daily: s.daily, weekly: s.weekly, alerta: s.alerta })
-        .then(r => guardarRecordatorios(r.recordatorios))
-        .catch(e => { if (typeof msToast === 'function') msToast('No se pudo guardar el recordatorio: ' + e.message, '⚠️'); });
+      const datos = JSON.parse(JSON.stringify({ daily: s.daily, weekly: s.weekly, alerta: s.alerta }));
+      recQueue = recQueue.catch(() => {}).then(() => req('PUT', '/recordatorios', datos))
+        .then(r => { if (version === recVersion) guardarRecordatorios(r.recordatorios); })
+        .catch(e => { if (version === recVersion && typeof msToast === 'function') msToast('No se pudo guardar el recordatorio: ' + e.message, '⚠️'); });
     }, 600);
   }
 

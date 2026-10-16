@@ -1678,3 +1678,8 @@ body{ max-width:100%; overflow-x:hidden; }
 
 /* Ajustes de accesibilidad y tamaño de formularios de acceso */
 @media(min-width:760px){.app-shell.no-nav.auth-split .screen > *{max-width:560px}.app-shell.no-nav.auth-split .screen{font-size:1.06rem}.app-shell.no-nav.auth-split .screen .input-wrap{min-height:54px}.app-shell.no-nav.auth-split .screen .btn{min-height:52px}}
+
+/* Recordatorios: conservar el interruptor original dentro de la lista */
+.mini-list li > .switch{display:inline-block;position:relative;width:38px;height:22px;min-width:38px;flex-shrink:0;margin-left:auto;vertical-align:middle}
+.mini-list li > .switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:2}
+.mini-list li > .switch .slider{display:block;position:absolute;inset:0}
