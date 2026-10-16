@@ -29,6 +29,8 @@ msAlCargar(() => {
     return;
   }
   if (registroEditado) {
+    const titulo = document.getElementById('registroTitulo');
+    if (titulo) titulo.textContent = registroEditado.type === 'episodio' ? 'Editar migraña' : 'Editar señal';
     setTab(registroEditado.type);
     tabBtns.forEach(b => { if (b.dataset.tab !== registroEditado.type) b.style.display = 'none'; });
   }

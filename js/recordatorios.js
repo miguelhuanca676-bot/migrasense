@@ -191,7 +191,7 @@ const MSRec = (() => {
         ${acciones}
         <button type="button" class="rem-x" data-rem="dismiss" aria-label="Descartar aviso">×</button>
       </div>`;
-    const topbar = host.querySelector('.topbar');
+    const topbar = host.querySelector('.page-head, .topbar');   // el aviso va debajo del título de la página
     host.insertBefore(el, topbar ? topbar.nextSibling : host.firstChild);
 
     el.addEventListener('click', e => {

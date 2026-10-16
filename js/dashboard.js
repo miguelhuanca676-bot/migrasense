@@ -13,7 +13,8 @@ msAlCargar(() => {
   const records = MS.get(MS_KEYS.RECORDS, []);
 
   document.getElementById('greetName').textContent = user ? user.name.split(' ')[0] : 'Invitado/a';
-  document.getElementById('avatarImg').src = MS.avatarSrc(user);
+  const avatarImg = document.getElementById('avatarImg');   // la foto ahora la pone la barra común (app.js)
+  if (avatarImg) avatarImg.src = MS.avatarSrc(user);
 
   /* ---------- Riesgo estimado: modelo de ML (o reglas si no hay conexión) ---------- */
   let risk = MSAnalisis.riesgo(records, onboarding);

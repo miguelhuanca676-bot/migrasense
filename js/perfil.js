@@ -24,6 +24,7 @@ msAlCargar(() => {
   function paintPhoto(u) {
     avatarImg.src = MS.avatarSrc(u);
     removeBtn.style.display = u && u.photo ? '' : 'none';
+    if (typeof msPintarCuenta === 'function') msPintarCuenta();   // también la barra y el menú de cuenta
   }
   paintPhoto(user);
 
@@ -140,7 +141,7 @@ msAlCargar(() => {
     ocupado(btn, true);
     MSApi.actualizarCuenta(datos)
       .then(u => {
-        document.getElementById('profileName').textContent = u.name;
+        document.getElementById('profileName').textContent = u.name; if (typeof msPintarCuenta === 'function') msPintarCuenta();
         document.getElementById('profileEmail').textContent = u.email;
         document.getElementById('pName').value = u.name;
         pEmail.value = u.email;

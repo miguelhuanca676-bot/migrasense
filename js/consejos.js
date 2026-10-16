@@ -117,8 +117,8 @@
   root.innerHTML = SECCIONES.map(s => `
     <section class="card acc" id="acc-${s.id}">
       <button type="button" class="acc-btn" aria-expanded="false" aria-controls="panel-${s.id}">
-        <span class="tip-icon" style="background:${s.color};margin:0;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${s.icon}</svg>
+        <span class="tip-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${s.icon}</svg>
         </span>
         <span class="acc-title"><strong>${s.t}</strong><small>${s.s}</small></span>
         <svg class="acc-chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>

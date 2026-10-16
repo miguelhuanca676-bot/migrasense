@@ -24,8 +24,8 @@ msAlCargar(() => {
   let chartMode = 'semana';             // 'semana' | 'mes'
 
   const ICONS = {
-    prodromico: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1"/></svg>`,
-    episodio: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3c-3 4-7 8-7 12a7 7 0 0 0 14 0c0-4-4-8-7-12Z"/></svg>`
+    prodromico: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1"/></svg>`,
+    episodio: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3c-3 4-7 8-7 12a7 7 0 0 0 14 0c0-4-4-8-7-12Z"/></svg>`
   };
 
   /* ---------- Utilidades ---------- */
@@ -225,13 +225,12 @@ msAlCargar(() => {
       item.type = 'button';
       item.className = 'record-item record-btn';
       item.dataset.id = r.id;
-      const bg = r.type === 'episodio' ? 'linear-gradient(135deg,#f2994a,#f2b26a)' : 'linear-gradient(135deg,#60a5fa,#2563eb)';
       const detalle = r.type === 'episodio'
         ? `${esc((r.sintomas || []).slice(0, 2).join(', ') || 'Sin síntomas detallados')}${r.duracion ? ' · ' + esc(humanize(r.duracion)) : ''}`
         : esc((r.sintomas || []).slice(0, 3).join(', ') || 'Sin detalle');
 
       item.innerHTML = `
-        <div class="record-icon" style="background:${bg};">${ICONS[r.type] || ''}</div>
+        <div class="record-icon is-${r.type}">${ICONS[r.type] || ''}</div>
         <div class="record-body">
           <div class="record-top">
             <span class="record-title">${esc(r.label)}</span>
