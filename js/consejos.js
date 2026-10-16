@@ -1,3 +1,4 @@
+
 /* ===================================================================
    MigraSense — consejos.js
    Guías desplegables (alimentación, ejercicios, cuándo consultar).
@@ -41,7 +42,7 @@
       p: ['Manos, hombros, cuello, mandíbula y piernas: en cada zona aprieta 5 seg. y relaja.'], n: 'Hazlo durante 5–10 minutos.' }
   ];
   const AEROBICO = [
-    F('ej-caminar','Caminar'), F('ej-bicicleta','Bicicleta'), F('ej-natacion','Natación'), F('ej-yoga','Yoga'), F('ej-trote','Trote suave (si lo toleras)')
+    F('ej-caminar (2)','Caminar'), F('ej-bicicleta (2)','Bicicleta'), F('ej-natacion (2)','Natación'), F('ej-baile-aerobico (2)','Baile aeróbico'), F('ej-bajo-impacto (2)','Ejercicios de bajo impacto')
   ];
   const DURANTE = ['Respiración lenta y profunda.', 'Estiramientos muy suaves.', 'Relajación muscular.', 'Caminar lentamente si no empeora el dolor.', 'Descansar en un lugar oscuro y tranquilo.', 'Hidratarte.'];
   const EVITAR = ['Correr intensamente.', 'Levantar mucho peso.', 'HIIT (entrenamiento de alta intensidad).', 'Saltos.', 'Ejercicios que aumenten la presión o el esfuerzo.', 'Entrenar con calor intenso o deshidratado.'];
