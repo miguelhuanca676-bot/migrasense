@@ -191,7 +191,8 @@ msAlCargar(() => {
   const remStatus = $('remStatus'), remNext = $('remNext'), remEnable = $('remEnableBtn'), remTest = $('remTestBtn');
 
   const ESTADOS = {
-    granted: ['ok', 'Avisos del dispositivo activados. Te notificaremos a la hora elegida mientras MigraSense esté abierta o instalada.'],
+    granted: ['ok', 'Avisos activados en este dispositivo: te llegarán a la hora elegida, aunque MigraSense esté cerrada.'],
+    'granted-local': ['warn', 'Los avisos están permitidos, pero este dispositivo todavía no quedó registrado en el servidor. Toca «Enviar prueba» para registrarlo.'],
     denied: ['bad', 'Los avisos están bloqueados en este navegador. Habilítalos desde el candado junto a la dirección web. Mientras tanto verás los recordatorios dentro de la app.'],
     default: ['warn', 'Los avisos del dispositivo aún no están activados. Verás los recordatorios dentro de la app.'],
     'no-soportado': ['warn', 'Este navegador no admite avisos del dispositivo (en iPhone, instala MigraSense en la pantalla de inicio). Verás los avisos dentro de la app.']
@@ -206,7 +207,8 @@ msAlCargar(() => {
     $('pWeeklyDay').value = String(s.weekly.day);
     $('pWeeklyTime').value = s.weekly.time;
     const p = MSRec.permiso();
-    const [estado, texto] = ESTADOS[p] || ESTADOS.default;
+    const clave = p === 'granted' && MSRec.soportaPush() && !MSRec.pushActivo() ? 'granted-local' : p;
+    const [estado, texto] = ESTADOS[clave] || ESTADOS.default;
     remStatus.dataset.estado = estado;
     remStatus.textContent = texto;
     remEnable.style.display = p === 'default' ? '' : 'none';
@@ -216,6 +218,7 @@ msAlCargar(() => {
 
   async function activarSiHaceFalta() {
     if (MSRec.permiso() === 'default') await MSRec.pedirPermiso();
+    if (MSRec.permiso() === 'granted') await MSRec.suscribirPush();
     pintarRecordatorios();
   }
   const HORA_OK = v => /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
@@ -255,13 +258,17 @@ msAlCargar(() => {
 
   remEnable.addEventListener('click', async () => {
     const p = await MSRec.pedirPermiso();
+    const r = p === 'granted' ? await MSRec.suscribirPush() : p;
     pintarRecordatorios();
-    if (p === 'granted') msToast('Avisos del dispositivo activados', '✅');
+    if (r === 'ok') msToast('Avisos activados: llegarán aunque la app esté cerrada', '✅');
+    else if (p === 'granted') msToast('Avisos permitidos; no se pudo registrar el dispositivo en el servidor', '⚠️');
   });
+  // Al entrar al perfil con permiso ya dado, se registra el dispositivo si faltaba
+  if (MSRec.permiso() === 'granted' && MSRec.soportaPush() && !MSRec.pushActivo()) MSRec.suscribirPush().then(pintarRecordatorios);
   remTest.addEventListener('click', async () => {
     const r = await MSRec.probar();
     pintarRecordatorios();
-    if (r === 'ok') msToast('Notificación de prueba enviada', '🔔');
+    if (r === 'ok') msToast('Aviso de prueba enviado: debería aparecer en unos segundos', '🔔');
     else if (r === 'denied') msToast('Las notificaciones están bloqueadas en este navegador', '⚠️');
     else if (r === 'no-soportado') msToast('Este navegador no admite notificaciones del dispositivo', '⚠️');
     else msToast('No se pudo enviar la notificación', '⚠️');

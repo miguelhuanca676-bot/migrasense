@@ -16,8 +16,10 @@
 
    Los horarios se guardan en el servidor (PUT /api/recordatorios), así se
    conservan al cambiar de celular o navegador.
-   Limitación honesta: ningún navegador puede despertar una página cerrada
-   sin Web Push (el sw.js ya incluye el manejador 'push' para cuando exista).
+   6. AVISOS CON LA APP CERRADA (Web Push): el navegador se suscribe con la
+      clave del servidor; a la hora elegida el servidor (despertado por
+      cron-job.org) envía la notificación aunque MigraSense esté cerrada.
+      En iPhone funciona solo si la app está instalada en la pantalla de inicio.
    =================================================================== */
 const MSRec = (() => {
   const DAY = 86400000;
@@ -165,6 +167,56 @@ const MSRec = (() => {
     return navigator.serviceWorker.register('sw.js').catch(() => null);
   }
 
+  /* ---------- Avisos con la app cerrada (Web Push) ---------- */
+  const PUSH_KEY = 'ms_push_endpoint';   // endpoint suscrito en este navegador (para no duplicar avisos)
+  const soportaPush = () => soporta() && 'serviceWorker' in navigator && 'PushManager' in window;
+  const pushActivo = () => { try { return !!localStorage.getItem(PUSH_KEY); } catch (e) { return false; } };
+
+  function claveABytes(b64) {
+    const pad = '='.repeat((4 - b64.length % 4) % 4);
+    const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(raw, c => c.charCodeAt(0));
+  }
+  const mismaClave = (a, b) => a && b && a.byteLength === b.byteLength && new Uint8Array(a).every((v, i) => v === b[i]);
+
+  /** Suscribe este navegador y se lo cuenta al servidor. → 'ok' | 'no-soportado' | 'denied' | 'default' | 'sin-servidor' | 'fallo' */
+  async function suscribirPush() {
+    if (!soportaPush()) return 'no-soportado';
+    if (permiso() !== 'granted') return permiso();
+    try {
+      const info = await MSApi.req('GET', '/push/clave');
+      if (!info.configurado || !info.clave) return 'sin-servidor';
+      await registrarSW();
+      const reg = await navigator.serviceWorker.ready;
+      const clave = claveABytes(info.clave);
+      let sub = await reg.pushManager.getSubscription();
+      if (sub && !mismaClave(sub.options && sub.options.applicationServerKey, clave)) { await sub.unsubscribe(); sub = null; }
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: clave });
+      const j = sub.toJSON();
+      await MSApi.req('POST', '/push/suscripcion', { endpoint: j.endpoint, keys: j.keys });
+      try { localStorage.setItem(PUSH_KEY, j.endpoint); sessionStorage.setItem('ms_push_sync', '1'); } catch (e) { /* sin almacenamiento */ }
+      return 'ok';
+    } catch (e) {
+      console.warn('Push:', e && e.message);
+      return 'fallo';
+    }
+  }
+
+  /** Al cerrar sesión: este navegador deja de recibir los avisos de esta cuenta */
+  async function quitarPush() {
+    let endpoint = null;
+    try { endpoint = localStorage.getItem(PUSH_KEY); localStorage.removeItem(PUSH_KEY); sessionStorage.removeItem('ms_push_sync'); } catch (e) { /* nada */ }
+    if (!endpoint || typeof MSApi === 'undefined') return;
+    try { await MSApi.req('DELETE', '/push/suscripcion', { endpoint }, { reintentos: 0 }); } catch (e) { /* igual se cierra */ }
+  }
+
+  /** Prueba real: el servidor manda un aviso a este y a los demás dispositivos de la cuenta */
+  async function probarServidor() {
+    const r = await suscribirPush();
+    if (r !== 'ok') return r;
+    try { const x = await MSApi.req('POST', '/push/prueba'); return x.enviados > 0 ? 'ok' : 'fallo'; } catch (e) { return 'fallo'; }
+  }
+
   /* ---------- Aviso dentro de la app ---------- */
   function quitarBanner() { const el = document.getElementById('remBanner'); if (el) el.remove(); }
 
@@ -244,7 +296,7 @@ const MSRec = (() => {
 
     for (const it of items) {
       // Notificación del dispositivo: una sola vez por día y solo si la pestaña no está a la vista
-      if (!visible && s[it.notif] !== hoy) {
+      if (!visible && !pushActivo() && s[it.notif] !== hoy) {
         const ok = await notificar({ titulo: it.msg.titulo, cuerpo: it.msg.cuerpo, url: it.url, tag: 'migrasense-' + it.tipo });
         if (ok) update(x => { x[it.notif] = hoy; });
       }
@@ -256,6 +308,10 @@ const MSRec = (() => {
   function iniciar() {
     if (!MS.isLoggedIn()) return;
     registrarSW();
+    // Si ya dio permiso, se asegura una vez por sesión de que el servidor tenga este dispositivo
+    let sincronizado = false;
+    try { sincronizado = sessionStorage.getItem('ms_push_sync') === '1'; } catch (e) { /* nada */ }
+    if (permiso() === 'granted' && !sincronizado && typeof MSApi !== 'undefined') suscribirPush();
     comprobar();
     clearInterval(intervalo);
     intervalo = setInterval(comprobar, 30000);
@@ -265,6 +321,10 @@ const MSRec = (() => {
 
   async function probar() {
     const p = await pedirPermiso();
+    if (p === 'granted' && soportaPush()) {
+      const r = await probarServidor();       // aviso real desde el servidor
+      if (r === 'ok') return 'ok';
+    }
     const msg = { titulo: 'Así se verán tus recordatorios', cuerpo: 'Si ves este aviso, las notificaciones de MigraSense funcionan.' };
     if (p === 'granted') { const ok = await notificar({ ...msg, tag: 'migrasense-prueba' }); return ok ? 'ok' : 'fallo'; }
     return p;
@@ -286,6 +346,7 @@ const MSRec = (() => {
   return {
     get, save, update, normalizar, vencidos, proximo, textoProximo, probarAlerta,
     mensajeDiario, mensajeSemanal, permiso, pedirPermiso, notificar, probar, comprobar,
+    suscribirPush, quitarPush, pushActivo, soportaPush,
     DIAS
   };
 })();

@@ -246,6 +246,9 @@ const MSApi = (() => {
 
 /* Cerrar sesión ahora también avisa al servidor */
 MS.logout = async function () {
+  if (typeof MSRec !== 'undefined' && MSRec.quitarPush) {
+    await Promise.race([MSRec.quitarPush(), new Promise(r => setTimeout(r, 2500))]);
+  }
   await MSApi.cerrarSesion();
   window.location.href = 'login.html';
 };
