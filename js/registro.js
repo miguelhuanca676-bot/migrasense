@@ -193,6 +193,8 @@ msAlCargar(() => {
   bindScale('prodIntensidad', 'prodValue', 'prodCaption');
   bindScale('epIntensidad', 'epValue', 'epCaption');
 
+  let horasOriginales = null;
+
   /* Rellenar todos los campos al editar, manteniendo el diseño existente. */
   if (registroEditado) {
     const r = registroEditado;
@@ -214,11 +216,15 @@ msAlCargar(() => {
       if (!Number.isNaN(inicio.getTime())) {
         epFecha.value = `${inicio.getFullYear()}-${pad(inicio.getMonth()+1)}-${pad(inicio.getDate())}`;
         epHoraInicio.value = hhmm(inicio);
-        const fin = r.fin ? new Date(r.fin) : new Date(inicio.getTime() + (Number(r.duracionMinutos) || 60)*60000);
+        // El servidor guarda la duración como rango: si no hay hora de fin exacta se usa un valor dentro del rango
+        const minutosRango = { menos_4h: 120, '4_24h': 360, '1_3d': 1439, mas_3d: 1439 }[r.duracion] || 60;
+        const fin = r.fin ? new Date(r.fin) : new Date(inicio.getTime() + (Number(r.duracionMinutos) || minutosRango)*60000);
         epHoraFin.value = hhmm(fin);
         actualizarDuracion();
       }
-      seleccionar(epSintomas, r.sintomas);
+      // Para no cambiar la duración si la persona no toca las horas (p. ej. episodios de más de 1 día)
+      horasOriginales = [epFecha.value, epHoraInicio.value, epHoraFin.value].join('|');
+      seleccionar(epSintomas, (r.sintomas || []).length ? r.sintomas : ['ninguno']);
       seleccionar(epDisparadores, r.disparadores);
       seleccionar(document.getElementById('epMedicacion'), [r.medicacion ? 'si' : 'no']);
       epMedNombreWrap.style.display = r.medicacion ? '' : 'none';
@@ -249,11 +255,16 @@ msAlCargar(() => {
 
     const ahora = new Date();
     let aparicion = ahora;
+    // Al editar se conserva el DÍA original del registro y solo cambia la hora
+    const original = registroEditado ? new Date(registroEditado.inicio || registroEditado.date) : null;
+    const base = original && !Number.isNaN(original.getTime()) ? original : ahora;
     if (getSingleValue(prodHoraModo) === 'otra') {
       if (!/^\d{2}:\d{2}$/.test(prodHora.value)) { msToast('Indica la hora de aparición', '⚠️'); return; }
       const [h, m] = prodHora.value.split(':').map(Number);
-      aparicion = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), h, m, 0, 0);
+      aparicion = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0, 0);
       if (aparicion > ahora) aparicion.setDate(aparicion.getDate() - 1);   // hora futura = fue ayer
+    } else if (registroEditado) {
+      aparicion = base;
     }
 
     guardar(document.getElementById('saveProdromico'), 'prodromico', {
@@ -286,7 +297,9 @@ msAlCargar(() => {
     if (!t || t.minutos <= 0) { msToast('Indica una fecha y horas válidas, con duración mayor a cero', '⚠️'); return; }
     if (t.inicio.getTime() > Date.now() || t.fin.getTime() > Date.now()) { msToast('El episodio no puede comenzar ni terminar en el futuro', '⚠️'); return; }
     const inicio = t.inicio;
-    const duracion = t.minutos < 240 ? 'menos_4h' : t.minutos <= 1440 ? '4_24h' : t.minutos <= 4320 ? '1_3d' : 'mas_3d';
+    let duracion = t.minutos < 240 ? 'menos_4h' : t.minutos <= 1440 ? '4_24h' : t.minutos <= 4320 ? '1_3d' : 'mas_3d';
+    const horasSinCambios = registroEditado && horasOriginales === [epFecha.value, epHoraInicio.value, epHoraFin.value].join('|');
+    if (horasSinCambios && registroEditado.duracion) duracion = registroEditado.duracion;
     const medicacion = getSingleValue(document.getElementById('epMedicacion')) === 'si';
     guardar(document.getElementById('saveEpisodio'), 'episodio', {
       intensidad: Number(document.getElementById('epIntensidad').value),
@@ -294,7 +307,7 @@ msAlCargar(() => {
       fin: t.fin.toISOString(),
       duracionMinutos: t.minutos,
       inicio: inicio.toISOString(),
-      sintomas: getMultiValues(epSintomas),          // se envían los códigos (luz, cervical…)
+      sintomas: getMultiValues(epSintomas).filter(s => s !== 'ninguno'),   // códigos (luz, cervical…); "Ningún síntoma" = lista vacía
       disparadores: getMultiValues(epDisparadores),
       medicacion,
       medicamento: medicacion ? document.getElementById('epMedNombre').value.trim() : '',

@@ -153,13 +153,20 @@ const MSApi = (() => {
   }
 
   /* ---------- Acciones ---------- */
-  const codigoSintoma = t => { const s = MS_PRODROMICOS.find(p => p.label === t || p.id === t); return s ? s.id : t; };
+  const SINTOMAS_EXTRA = [{ id: 'auras', label: 'Auras' }];   // se ofrece solo en episodios
+  const codigoSintoma = t => { const s = [...MS_PRODROMICOS, ...SINTOMAS_EXTRA].find(p => p.label === t || p.id === t); return s ? s.id : t; };
   const codigoDisparador = t => { const s = MS_TRIGGERS.find(p => p.label === t || p.id === t); return s ? s.id : t; };
 
-  async function crearRegistro(tipo, datos) {
+  // Códigos del catálogo; "Ningún síntoma" no se envía (= sin síntomas)
+  function cuerpoRegistro(datos) {
     const cuerpo = { ...datos };
-    if (cuerpo.sintomas) cuerpo.sintomas = cuerpo.sintomas.map(codigoSintoma);
+    if (cuerpo.sintomas) cuerpo.sintomas = cuerpo.sintomas.filter(s => s !== 'ninguno').map(codigoSintoma);
     if (cuerpo.disparadores) cuerpo.disparadores = cuerpo.disparadores.map(codigoDisparador);
+    return cuerpo;
+  }
+
+  async function crearRegistro(tipo, datos) {
+    const cuerpo = cuerpoRegistro(datos);
     const r = await req('POST', '/registros/' + tipo, cuerpo);
     const nuevo = registroLocal(r.registro);
     MS.set(MS_KEYS.RECORDS, [nuevo, ...MS.get(MS_KEYS.RECORDS, []).filter(x => x.id !== nuevo.id)]);
@@ -168,9 +175,10 @@ const MSApi = (() => {
   }
 
   async function editarRegistro(local, datos) {
-    const r = await req('PUT', `/registros/${local.type}/${local.apiId}`, datos);
+    const r = await req('PUT', `/registros/${local.type}/${local.apiId}`, cuerpoRegistro(datos));
     const act = registroLocal(r.registro);
     MS.set(MS_KEYS.RECORDS, MS.get(MS_KEYS.RECORDS, []).map(x => x.id === act.id ? act : x));
+    MS.remove(PRED);   // la predicción depende de los registros
     return act;
   }
 
