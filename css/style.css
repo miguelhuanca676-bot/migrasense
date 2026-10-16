@@ -1675,3 +1675,6 @@ body{ max-width:100%; overflow-x:hidden; }
   animation:ms-girar .9s linear infinite; }
 @keyframes ms-girar{ to{ transform:rotate(360deg); } }
 .btn[aria-busy="true"]{ opacity:.7; pointer-events:none; }
+
+/* Ajustes de accesibilidad y tamaño de formularios de acceso */
+@media(min-width:760px){.app-shell.no-nav.auth-split .screen > *{max-width:560px}.app-shell.no-nav.auth-split .screen{font-size:1.06rem}.app-shell.no-nav.auth-split .screen .input-wrap{min-height:54px}.app-shell.no-nav.auth-split .screen .btn{min-height:52px}}

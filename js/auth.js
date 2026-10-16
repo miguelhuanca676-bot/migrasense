@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const email = emailInput.value.trim();
       const password = passwordInput.value;
       const password2 = password2Input.value;
-      const terms = document.getElementById('terms').checked;
+
 
       let valid = true;
 
@@ -174,10 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const pass2Msg = validators.password2(password2, password);
       showError('fieldPass2', !!pass2Msg, pass2Msg); if (pass2Msg) valid = false;
-
-      const termsField = document.getElementById('fieldTerms');
-      if (!terms) { termsField.style.outline = '2px solid var(--danger)'; termsField.style.borderRadius = '10px'; valid = false; }
-      else { termsField.style.outline = 'none'; }
 
       if (!valid) return;
 

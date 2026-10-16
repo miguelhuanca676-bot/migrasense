@@ -21,9 +21,28 @@ msAlCargar(() => {
   if (urlTab === 'episodio') setTab('episodio');
 
   /* ---------- Fecha/hora actual por defecto en episodio ---------- */
-  const epInicio = document.getElementById('epInicio');
-  const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
-  epInicio.value = now.toISOString().slice(0, 16);
+  const epFecha = document.getElementById('epFecha');
+  const epHoraInicio = document.getElementById('epHoraInicio');
+  const epHoraFin = document.getElementById('epHoraFin');
+  const ahoraLocal = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  epFecha.value = `${ahoraLocal.getFullYear()}-${pad(ahoraLocal.getMonth()+1)}-${pad(ahoraLocal.getDate())}`;
+  function tiemposEpisodio() {
+    if (!epFecha.value || !epHoraInicio.value || !epHoraFin.value) return null;
+    const inicio = new Date(`${epFecha.value}T${epHoraInicio.value}:00`);
+    const fin = new Date(`${epFecha.value}T${epHoraFin.value}:00`);
+    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) return null;
+    if (fin < inicio) fin.setDate(fin.getDate()+1);
+    const minutos = Math.round((fin-inicio)/60000);
+    return {inicio,fin,minutos};
+  }
+  function actualizarDuracion() {
+    const t = tiemposEpisodio();
+    document.getElementById('epDuracionExacta').textContent = t && t.minutos > 0
+      ? `Duración exacta: ${Math.floor(t.minutos/1440)} día(s), ${Math.floor(t.minutos%1440/60)} hora(s) y ${t.minutos%60} minuto(s).`
+      : 'Completa una hora de inicio y fin diferentes para calcular la duración.';
+  }
+  [epFecha,epHoraInicio,epHoraFin].forEach(el=>el.addEventListener('change',actualizarDuracion));
 
   /* ---------- Helpers de selección tipo chip / option-card ----------
      Escuchamos 'change' en el <input>, no 'click' en el <label>: un
@@ -106,7 +125,7 @@ msAlCargar(() => {
 
   /* ---------- Construir grid de síntomas (pestaña 2, versión compacta) ---------- */
   const epSintomas = document.getElementById('epSintomas');
-  MS_PRODROMICOS.forEach(p => {
+  [{id:'ninguno',label:'Ningún síntoma'},{id:'auras',label:'Auras'}, ...MS_PRODROMICOS].forEach(p => {
     const label = document.createElement('label');
     label.className = 'chip';
     label.dataset.value = p.id;
@@ -114,6 +133,16 @@ msAlCargar(() => {
     epSintomas.appendChild(label);
   });
   bindMulti(epSintomas);
+  epSintomas.addEventListener('change', e => {
+    const input = e.target;
+    if (!input.matches('input')) return;
+    const ninguno = epSintomas.querySelector('[data-value="ninguno"] input');
+    if (input === ninguno && input.checked) {
+      epSintomas.querySelectorAll('input').forEach(other => { if(other !== ninguno){other.checked=false;other.closest('.chip').classList.remove('selected');} });
+    } else if (input !== ninguno && input.checked) {
+      ninguno.checked=false;ninguno.closest('.chip').classList.remove('selected');
+    }
+  });
 
   /* ---------- Construir grid de disparadores (pestaña 2) ---------- */
   const epDisparadores = document.getElementById('epDisparadores');
@@ -126,7 +155,7 @@ msAlCargar(() => {
   });
   bindMulti(epDisparadores);
 
-  bindSingle(document.getElementById('epDuracion'));
+
   bindSingle(document.getElementById('epMedicacion'));
 
   /* ---------- Mostrar/ocultar nombre del medicamento ---------- */
@@ -194,16 +223,17 @@ msAlCargar(() => {
 
   /* ---------- Guardar: episodio completo ---------- */
   document.getElementById('saveEpisodio').addEventListener('click', () => {
-    const duracion = getSingleValue(document.getElementById('epDuracion'));
-    if (!duracion) { msToast('Selecciona la duración estimada', '⚠️'); return; }
-
-    const inicio = new Date(epInicio.value);
-    if (isNaN(inicio)) { msToast('Indica la fecha y hora de inicio', '⚠️'); return; }
-    if (inicio.getTime() > Date.now() + 10 * 60000) { msToast('La fecha de inicio no puede estar en el futuro', '⚠️'); return; }
+    const t = tiemposEpisodio();
+    if (!t || t.minutos <= 0) { msToast('Indica una fecha y horas válidas, con duración mayor a cero', '⚠️'); return; }
+    if (t.inicio.getTime() > Date.now() || t.fin.getTime() > Date.now()) { msToast('El episodio no puede comenzar ni terminar en el futuro', '⚠️'); return; }
+    const inicio = t.inicio;
+    const duracion = t.minutos < 240 ? 'menos_4h' : t.minutos <= 1440 ? '4_24h' : t.minutos <= 4320 ? '1_3d' : 'mas_3d';
     const medicacion = getSingleValue(document.getElementById('epMedicacion')) === 'si';
     guardar(document.getElementById('saveEpisodio'), 'episodio', {
       intensidad: Number(document.getElementById('epIntensidad').value),
       duracion,
+      fin: t.fin.toISOString(),
+      duracionMinutos: t.minutos,
       inicio: inicio.toISOString(),
       sintomas: getMultiValues(epSintomas),          // se envían los códigos (luz, cervical…)
       disparadores: getMultiValues(epDisparadores),

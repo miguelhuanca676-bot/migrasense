@@ -67,12 +67,14 @@ msAlCargar(() => {
   /* ---------- Recordatorios (lógica real en js/recordatorios.js) ---------- */
   const remDaily = document.getElementById('remDaily');
   const remWeekly = document.getElementById('remWeekly');
+  const remAlerta = document.getElementById('remAlerta');
   const DIA_TXT = ['domingos', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábados'];
 
   function pintarRecordatorios() {
     const s = MSRec.get();
     remDaily.checked = s.daily.on;
     remWeekly.checked = s.weekly.on;
+    remAlerta.checked = s.alerta.on;
     document.getElementById('remDailyWhen').textContent = s.daily.on ? `Todos los días · ${s.daily.time}` : 'Desactivado';
     document.getElementById('remWeeklyWhen').textContent = s.weekly.on ? `${DIA_TXT[s.weekly.day].replace(/^./, c => c.toUpperCase())} · ${s.weekly.time}` : 'Desactivado';
   }
@@ -90,6 +92,7 @@ msAlCargar(() => {
   }
   remDaily.addEventListener('change', e => cambiarRecordatorio('daily', e.target.checked, 'Recordatorio diario'));
   remWeekly.addEventListener('change', e => cambiarRecordatorio('weekly', e.target.checked, 'Resumen semanal'));
+  remAlerta.addEventListener('change', e => cambiarRecordatorio('alerta', e.target.checked, 'Aviso de posible migraña'));
 
   /* ---------- Detectar señales: riesgo explicado + patrones reales ---------- */
   const DIAS_CORTO = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];

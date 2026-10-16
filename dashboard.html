@@ -92,6 +92,8 @@
       Registrar síntomas
     </a>
 
+    <a href="registro.html?tab=episodio" class="btn btn-primary" style="margin-top:12px;">＋ Registrar episodio de migraña</a>
+
     <h3 class="section-title">Acciones rápidas</h3>
     <div class="quick-grid">
       <a href="registro.html?tab=prodromico" class="quick-item">
@@ -100,13 +102,6 @@
         </span>
         <span class="quick-title">Síntomas prodrómicos</span>
         <span class="quick-sub">Registra signos iniciales</span>
-      </a>
-      <a href="registro.html?tab=episodio" class="quick-item">
-        <span class="quick-icon" style="background:linear-gradient(135deg,#f2994a,#f2b26a);">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3c-3 4-7 8-7 12a7 7 0 0 0 14 0c0-4-4-8-7-12Z"/></svg>
-        </span>
-        <span class="quick-title">Episodio de migraña</span>
-        <span class="quick-sub">Nivel, duración y síntomas</span>
       </a>
       <a href="historial.html" class="quick-item">
         <span class="quick-icon" style="background:linear-gradient(135deg,#4fb787,#7fd1a8);">
@@ -137,7 +132,7 @@
     <div class="dash-side">
     <div class="two-col">
       <div class="mini-card">
-        <h4>🩺 Síntomas recientes</h4>
+        <h4>🩺 Registros recientes</h4>
         <ul class="mini-list" id="recentSymptoms"></ul>
       </div>
       <div class="mini-card">
@@ -150,6 +145,9 @@
             <label class="switch"><input type="checkbox" id="remWeekly" aria-label="Recordatorio semanal"><span class="slider"></span></label>
           </li>
         </ul>
+          <li><span>Aviso de posible migraña<small class="rem-when">Según tus señales registradas</small></span>
+            <label class="switch"><input type="checkbox" id="remAlerta" aria-label="Aviso de posible migraña"><span class="slider"></span></label>
+          </li>
         <a href="perfil.html#recordatorios" class="rem-link">Configurar horarios</a>
       </div>
     </div>
