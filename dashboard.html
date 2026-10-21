@@ -65,6 +65,27 @@
     <div class="dash-grid">
     <div class="dash-main">
 
+    <section class="en-curso-card" id="enCursoCard" hidden aria-live="polite">
+      <div class="ec-top">
+        <span class="ec-dot" aria-hidden="true"></span>
+        <div>
+          <strong id="enCursoTitulo">Tienes una migraña en curso</strong>
+          <p id="enCursoTexto"></p>
+        </div>
+      </div>
+      <div class="ec-acciones">
+        <button type="button" class="btn btn-primary" id="enCursoTerminar">La migraña terminó</button>
+        <button type="button" class="link-btn" id="enCursoOtraHora">Terminó antes · indicar la hora</button>
+      </div>
+      <div class="ec-hora" id="enCursoHoraWrap" hidden>
+        <div class="field" style="margin-bottom:0;">
+          <label for="enCursoFin">¿Cuándo terminó?</label>
+          <div class="input-wrap"><input type="datetime-local" id="enCursoFin"></div>
+        </div>
+        <button type="button" class="btn btn-outline" id="enCursoGuardarHora">Guardar hora de fin</button>
+      </div>
+    </section>
+
     <section class="predict-card" aria-live="polite">
       <div class="predict-badge"><span class="dot"></span> Predicción de hoy</div>
       <div class="predict-row">
@@ -85,7 +106,7 @@
     <div class="action-pair">
       <a href="registro.html" class="action-tile action-main">
         <span class="action-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg></span>
-        <span class="action-txt"><strong>Registrar una señal</strong><small>Algo que notas antes del dolor</small></span>
+        <span class="action-txt"><strong>Registrar síntoma prodrómico</strong><small>Algún síntoma extraño que notes</small></span>
       </a>
       <a href="registro.html?tab=episodio" class="action-tile">
         <span class="action-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11Z"/></svg></span>

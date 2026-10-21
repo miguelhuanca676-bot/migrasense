@@ -91,13 +91,19 @@
             <label class="chip selected" data-value="ahora"><input type="radio" name="prodhora" checked>Ahora mismo</label>
             <label class="chip" data-value="otra"><input type="radio" name="prodhora">Elegir otra hora</label>
           </div>
-          <div class="field mt-16" id="prodHoraWrap" style="display:none; margin-bottom:0;">
-            <label for="prodHora">Hora de aparición</label>
-            <div class="input-wrap">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-              <input type="time" id="prodHora">
+          <div class="mt-16" id="prodHoraWrap" style="display:none;">
+            <div class="field">
+              <label for="prodFecha">Fecha de aparición</label>
+              <div class="input-wrap"><input type="date" id="prodFecha"></div>
             </div>
-            <p class="field-hint">Si la hora es posterior a la actual, se guardará como de ayer.</p>
+            <div class="field" style="margin-bottom:0;">
+              <label for="prodHora">Hora de aparición</label>
+              <div class="input-wrap">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <input type="time" id="prodHora">
+              </div>
+              <p class="field-hint">Elige el día y la hora en que notaste el síntoma.</p>
+            </div>
           </div>
 
           <h4 class="form-group-title">Nivel de malestar</h4>
@@ -130,15 +136,42 @@
             <div class="scale-labels"><span>Leve</span><span>Moderado</span><span>Severo</span></div>
           </div>
 
-          <h4 class="form-group-title">Fecha del episodio</h4>
-          <div class="field"><label for="epFecha">Fecha de inicio</label><div class="input-wrap"><input type="date" id="epFecha" required></div></div>
-          <div class="field"><label for="epHoraInicio">Hora en que comenzó</label><div class="input-wrap"><input type="time" id="epHoraInicio" required></div></div>
-          <div class="field"><label for="epHoraFin">Hora en que terminó</label><div class="input-wrap"><input type="time" id="epHoraFin" required></div></div>
-          <p class="muted small" id="epDuracionExacta" aria-live="polite">Completa los horarios para calcular la duración.</p>
-          <p class="muted small">Si la hora final es anterior a la inicial, se considera que terminó al día siguiente.</p>
+          <div class="en-curso-aviso" id="epEnCursoAviso" hidden>
+            <strong>Ya tienes una migraña en curso.</strong>
+            <span id="epEnCursoTexto"></span>
+            <a href="dashboard.html" class="link-btn">Ir a Inicio para marcar que terminó</a>
+          </div>
 
-          <h4 class="form-group-title">Síntomas presentes</h4>
-          <p class="muted small" style="margin-bottom:10px;">Puedes elegir varios.</p>
+          <h4 class="form-group-title">¿Cuándo empezó?</h4>
+          <div class="chip-grid" id="epHoraModo">
+            <label class="chip selected" data-value="ahora"><input type="radio" name="ephora" checked>Ahora mismo</label>
+            <label class="chip" data-value="otra"><input type="radio" name="ephora">Elegir otra hora</label>
+          </div>
+          <div class="field mt-16"><label for="epFecha">Fecha de inicio</label><div class="input-wrap"><input type="date" id="epFecha" required></div></div>
+          <div class="field"><label for="epHoraInicio">Hora en que comenzó</label><div class="input-wrap"><input type="time" id="epHoraInicio" required></div></div>
+
+          <h4 class="form-group-title">Hora en que terminó</h4>
+          <div class="chip-grid" id="epFinModo">
+            <label class="chip selected" data-value="curso"><input type="radio" name="epfin" checked>Aún en curso</label>
+            <label class="chip" data-value="termino"><input type="radio" name="epfin">Ya terminó</label>
+          </div>
+          <p class="muted small mt-8" id="epCursoHint">Cuando se te pase, toca <strong>«La migraña terminó»</strong> en Inicio y guardaremos la hora.</p>
+          <div id="epFinWrap" hidden>
+            <div class="field mt-16"><label for="epHoraFin">Hora en que terminó</label><div class="input-wrap"><input type="time" id="epHoraFin"></div></div>
+            <p class="muted small" id="epDuracionExacta" aria-live="polite">Completa los horarios para calcular la duración.</p>
+            <p class="muted small">Si la hora final es anterior a la inicial, se considera que terminó al día siguiente.</p>
+          </div>
+
+          <h4 class="form-group-title">¿Es una migraña con aura?</h4>
+          <p class="muted small" style="margin-bottom:10px;">El aura son destellos, puntos ciegos, líneas en zigzag u hormigueo que aparecen antes o durante el dolor y duran de 5 a 60 minutos.</p>
+          <div class="chip-grid" id="epAura">
+            <label class="chip" data-value="si"><input type="radio" name="epaura">Sí</label>
+            <label class="chip" data-value="no"><input type="radio" name="epaura">No</label>
+            <label class="chip" data-value="no_se"><input type="radio" name="epaura">No estoy seguro/a</label>
+          </div>
+
+          <h4 class="form-group-title">Síntomas prodrómicos que detectaste</h4>
+          <p class="muted small" style="margin-bottom:10px;">Señales que notaste antes del dolor. Puedes elegir varias.</p>
           <div class="chip-grid" id="epSintomas"></div>
         </div>
 

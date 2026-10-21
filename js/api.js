@@ -102,7 +102,9 @@ const MSApi = (() => {
   const conZona = f => (f && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(f)) ? f + '-04:00' : f;
 
   function registroLocal(r) {
-    return { ...r, apiId: r.id, id: r.type.charAt(0) + r.id, inicio: conZona(r.inicio), date: conZona(r.date) };
+    const local = { ...r, apiId: r.id, id: r.type.charAt(0) + r.id, inicio: conZona(r.inicio), date: conZona(r.date) };
+    if (r.fin) local.fin = conZona(r.fin);
+    return local;
   }
 
   function perfilLocal(perfil) {
@@ -153,8 +155,8 @@ const MSApi = (() => {
   }
 
   /* ---------- Acciones ---------- */
-  const SINTOMAS_EXTRA = [{ id: 'auras', label: 'Auras' }];   // se ofrece solo en episodios
-  const codigoSintoma = t => { const s = [...MS_PRODROMICOS, ...SINTOMAS_EXTRA].find(p => p.label === t || p.id === t); return s ? s.id : t; };
+  // "Auras" ya no es un síntoma: ahora es la pregunta "¿Es una migraña con aura?" (campo aura)
+  const codigoSintoma = t => { const s = MS_PRODROMICOS.find(p => p.label === t || p.id === t); return s ? s.id : t; };
   const codigoDisparador = t => { const s = MS_TRIGGERS.find(p => p.label === t || p.id === t); return s ? s.id : t; };
 
   // Códigos del catálogo; "Ningún síntoma" no se envía (= sin síntomas)
@@ -179,6 +181,15 @@ const MSApi = (() => {
     const act = registroLocal(r.registro);
     MS.set(MS_KEYS.RECORDS, MS.get(MS_KEYS.RECORDS, []).map(x => x.id === act.id ? act : x));
     MS.remove(PRED);   // la predicción depende de los registros
+    return act;
+  }
+
+  /** "La migraña terminó": fin = ahora (o la fecha indicada) */
+  async function terminarMigrana(local, fin) {
+    const r = await req('POST', `/registros/episodio/${local.apiId}/terminar`, fin ? { fin: fin.toISOString() } : {});
+    const act = registroLocal(r.registro);
+    MS.set(MS_KEYS.RECORDS, MS.get(MS_KEYS.RECORDS, []).map(x => x.id === act.id ? act : x));
+    MS.remove(PRED);
     return act;
   }
 
@@ -238,7 +249,7 @@ const MSApi = (() => {
   }
 
   return {
-    req, ApiError, sincronizar, abrirSesion, limpiarLocal, crearRegistro, editarRegistro, eliminarRegistro,
+    req, ApiError, sincronizar, abrirSesion, limpiarLocal, crearRegistro, editarRegistro, eliminarRegistro, terminarMigrana,
     guardarCuestionario, actualizarCuenta, enviarRecordatorios, prediccion, prediccionGuardada, cerrarSesion,
     tieneToken: () => !!token(), base
   };

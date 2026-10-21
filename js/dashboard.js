@@ -16,6 +16,86 @@ msAlCargar(() => {
   const avatarImg = document.getElementById('avatarImg');   // la foto ahora la pone la barra común (app.js)
   if (avatarImg) avatarImg.src = MS.avatarSrc(user);
 
+  /* ---------- Migraña en curso: "La migraña terminó" ---------- */
+  const ecCard = document.getElementById('enCursoCard');
+  const ecHoraWrap = document.getElementById('enCursoHoraWrap');
+  const ecFin = document.getElementById('enCursoFin');
+  const pad2 = n => String(n).padStart(2, '0');
+  const aLocalInput = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const LIMITE_HORAS = 72;   // pasado esto, se pregunta a qué hora terminó en realidad
+
+  const enCurso = () => MS.get(MS_KEYS.RECORDS, []).find(r => r.type === 'episodio' && r.enCurso);
+
+  function textoTranscurrido(min) {
+    if (min < 1) return 'hace un momento';
+    const d = Math.floor(min / 1440), h = Math.floor(min % 1440 / 60), m = min % 60;
+    if (d) return `hace ${d} día${d > 1 ? 's' : ''}${h ? ` y ${h} h` : ''}`;
+    return `hace ${h ? h + ' h ' : ''}${m} min`;
+  }
+
+  function pintarEnCurso() {
+    const ep = enCurso();
+    ecCard.hidden = !ep;
+    if (!ep) return;
+    const inicio = new Date(ep.inicio || ep.date);
+    const min = Math.max(0, Math.round((Date.now() - inicio) / 60000));
+    const larga = min >= LIMITE_HORAS * 60;
+    ecCard.classList.toggle('es-larga', larga);
+    const hora = inicio.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+    const dias = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(inicio).setHours(0, 0, 0, 0)) / 86400000);
+    const cuando = dias === 0 ? 'hoy' : dias === 1 ? 'ayer' : 'el ' + inicio.toLocaleDateString('es-BO', { day: 'numeric', month: 'long' });
+    document.getElementById('enCursoTitulo').textContent = larga ? '¿Ya terminó tu migraña?' : 'Tienes una migraña en curso';
+    document.getElementById('enCursoTexto').textContent = larga
+      ? `La marcaste como «en curso» ${textoTranscurrido(min)} (${cuando} a las ${hora}). Si ya se te pasó, indica a qué hora terminó para que tu historial quede bien.`
+      : `Empezó ${cuando} a las ${hora} (${textoTranscurrido(min)}). Cuando se te pase, tócalo aquí y guardaremos la hora.`;
+    document.getElementById('enCursoOtraHora').textContent = larga ? 'Indicar a qué hora terminó' : 'Terminó antes · indicar la hora';
+    ecFin.min = aLocalInput(inicio);
+    ecFin.max = aLocalInput(new Date());
+    if (larga && ecHoraWrap.hidden && !ecFin.value) {   // después de 72 h se ofrece directamente la hora
+      ecHoraWrap.hidden = false;
+      ecFin.value = aLocalInput(new Date(Math.min(Date.now(), inicio.getTime() + 6 * 3600000)));
+    }
+  }
+
+  async function terminar(btn, fin) {
+    const ep = enCurso();
+    if (!ep || btn.getAttribute('aria-busy') === 'true') return;
+    const texto = btn.textContent;
+    btn.setAttribute('aria-busy', 'true'); btn.textContent = 'Guardando…';
+    try {
+      const act = await MSApi.terminarMigrana(ep, fin);
+      const m = act.duracionMinutos || 0;
+      msToast(`Listo. La migraña duró ${m >= 60 ? Math.floor(m / 60) + ' h ' : ''}${m % 60} min. ¡Que te mejores!`, '💙');
+      ecHoraWrap.hidden = true; ecFin.value = '';
+      pintarEnCurso();
+      records.splice(0, records.length, ...MS.get(MS_KEYS.RECORDS, []));
+    } catch (err) {
+      msToast(err.message, '⚠️');
+    } finally {
+      btn.removeAttribute('aria-busy'); btn.textContent = texto;
+    }
+  }
+
+  document.getElementById('enCursoTerminar').addEventListener('click', e => terminar(e.currentTarget));
+  document.getElementById('enCursoOtraHora').addEventListener('click', () => {
+    ecHoraWrap.hidden = !ecHoraWrap.hidden;
+    if (!ecHoraWrap.hidden) {
+      if (!ecFin.value) ecFin.value = aLocalInput(new Date());
+      ecFin.focus();
+    }
+  });
+  document.getElementById('enCursoGuardarHora').addEventListener('click', e => {
+    const ep = enCurso();
+    if (!ep) return;
+    const fin = ecFin.value ? new Date(ecFin.value) : null;
+    if (!fin || Number.isNaN(fin.getTime())) { msToast('Indica la fecha y hora en que terminó', '⚠️'); return; }
+    if (fin < new Date(ep.inicio || ep.date)) { msToast('No puede terminar antes de haber empezado', '⚠️'); return; }
+    if (fin.getTime() > Date.now() + 60000) { msToast('La hora de fin no puede estar en el futuro', '⚠️'); return; }
+    terminar(e.currentTarget, fin);
+  });
+  pintarEnCurso();
+  setInterval(pintarEnCurso, 60000);
+
   /* ---------- Riesgo estimado: modelo de ML (o reglas si no hay conexión) ---------- */
   let risk = MSAnalisis.riesgo(records, onboarding);
   const pat = MSAnalisis.patrones(records);

@@ -30,7 +30,7 @@ msAlCargar(() => {
   }
   if (registroEditado) {
     const titulo = document.getElementById('registroTitulo');
-    if (titulo) titulo.textContent = registroEditado.type === 'episodio' ? 'Editar migraña' : 'Editar señal';
+    if (titulo) titulo.textContent = registroEditado.type === 'episodio' ? 'Editar migraña' : 'Editar síntoma prodrómico';
     setTab(registroEditado.type);
     tabBtns.forEach(b => { if (b.dataset.tab !== registroEditado.type) b.style.display = 'none'; });
   }
@@ -41,7 +41,10 @@ msAlCargar(() => {
   const epHoraFin = document.getElementById('epHoraFin');
   const ahoraLocal = new Date();
   const pad = n => String(n).padStart(2, '0');
-  epFecha.value = `${ahoraLocal.getFullYear()}-${pad(ahoraLocal.getMonth()+1)}-${pad(ahoraLocal.getDate())}`;
+  const fechaISO = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  epFecha.value = fechaISO(ahoraLocal);
+  epFecha.max = fechaISO(ahoraLocal);
+  /* Fin del episodio: null si sigue "Aún en curso" */
   function tiemposEpisodio() {
     if (!epFecha.value || !epHoraInicio.value || !epHoraFin.value) return null;
     const inicio = new Date(`${epFecha.value}T${epHoraInicio.value}:00`);
@@ -52,6 +55,7 @@ msAlCargar(() => {
     return {inicio,fin,minutos};
   }
   function actualizarDuracion() {
+    if (typeof epFinModo !== 'undefined' && getSingleValue(epFinModo) === 'curso') return;
     const t = tiemposEpisodio();
     document.getElementById('epDuracionExacta').textContent = t && t.minutos > 0
       ? `Duración exacta: ${Math.floor(t.minutos/1440)} día(s), ${Math.floor(t.minutos%1440/60)} hora(s) y ${t.minutos%60} minuto(s).`
@@ -129,18 +133,73 @@ msAlCargar(() => {
   const prodHoraModo = document.getElementById('prodHoraModo');
   const prodHoraWrap = document.getElementById('prodHoraWrap');
   const prodHora = document.getElementById('prodHora');
+  const prodFecha = document.getElementById('prodFecha');
   const hhmm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   prodHora.value = hhmm(new Date());
+  prodFecha.value = prodFecha.max = fechaISO(new Date());
   bindSingle(prodHoraModo);
   prodHoraModo.addEventListener('change', () => {
     const modo = getSingleValue(prodHoraModo);
     prodHoraWrap.style.display = modo === 'otra' ? '' : 'none';
-    if (modo === 'otra') { prodHora.value = hhmm(new Date()); prodHora.focus(); }
+    if (modo === 'otra') { const n = new Date(); prodFecha.value = fechaISO(n); prodHora.value = hhmm(n); prodFecha.focus(); }
   });
+
+  /* ---------- Episodio: "Ahora mismo" / "Elegir otra hora" y "Aún en curso" / "Ya terminó" ---------- */
+  const epHoraModo = document.getElementById('epHoraModo');
+  const epFinModo = document.getElementById('epFinModo');
+  const epFinWrap = document.getElementById('epFinWrap');
+  const epCursoHint = document.getElementById('epCursoHint');
+  const chipAhora = epHoraModo.querySelector('[data-value="ahora"]');
+  const chipCurso = epFinModo.querySelector('[data-value="curso"]');
+  const chipTermino = epFinModo.querySelector('[data-value="termino"]');
+  bindSingle(epHoraModo);
+  bindSingle(epFinModo);
+  bindSingle(document.getElementById('epAura'));
+
+  /** Marca una opción de un grupo de chips (como si la persona la hubiera tocado) */
+  function elegir(contenedor, valor) {
+    contenedor.querySelectorAll('[data-value]').forEach(el => {
+      const si = el.dataset.value === valor;
+      el.classList.toggle('selected', si);
+      const input = el.querySelector('input');
+      if (input) input.checked = si;
+    });
+  }
+
+  // Solo puede haber una migraña "en curso": si ya hay otra, esta tiene que ser una que ya terminó
+  const otraEnCurso = MS.get(MS_KEYS.RECORDS, []).find(x => x.type === 'episodio' && x.enCurso && (!registroEditado || x.id !== registroEditado.id));
+  if (otraEnCurso) {
+    document.getElementById('epEnCursoAviso').hidden = false;
+    document.getElementById('epEnCursoTexto').textContent = `Empezó ${msFormatDate(otraEnCurso.inicio || otraEnCurso.date)}. Aquí solo puedes anotar una migraña que ya terminó.`;
+    chipAhora.classList.add('is-disabled');
+    chipCurso.classList.add('is-disabled');
+    elegir(epHoraModo, 'otra');
+    elegir(epFinModo, 'termino');
+  }
+
+  function aplicarModos() {
+    const ahora = getSingleValue(epHoraModo) === 'ahora';
+    if (ahora) {
+      const n = new Date();
+      epFecha.value = fechaISO(n);
+      epHoraInicio.value = hhmm(n);
+      elegir(epFinModo, 'curso');            // si empieza ahora, todavía no terminó
+    }
+    epFecha.disabled = ahora;
+    epHoraInicio.disabled = ahora;
+    chipTermino.hidden = ahora;
+    const curso = getSingleValue(epFinModo) === 'curso';
+    epFinWrap.hidden = curso;
+    epCursoHint.hidden = !curso;
+    if (!curso && !epHoraFin.value) epHoraFin.value = hhmm(new Date());
+    actualizarDuracion();
+  }
+  epHoraModo.addEventListener('change', aplicarModos);
+  epFinModo.addEventListener('change', aplicarModos);
 
   /* ---------- Construir grid de síntomas (pestaña 2, versión compacta) ---------- */
   const epSintomas = document.getElementById('epSintomas');
-  [{id:'ninguno',label:'Ningún síntoma'},{id:'auras',label:'Auras'}, ...MS_PRODROMICOS].forEach(p => {
+  [{id:'ninguno',label:'Ningún síntoma'}, ...MS_PRODROMICOS].forEach(p => {
     const label = document.createElement('label');
     label.className = 'chip';
     label.dataset.value = p.id;
@@ -215,17 +274,26 @@ msAlCargar(() => {
     if (r.type === 'episodio') {
       document.getElementById('epIntensidad').value = r.intensidad || 6;
       document.getElementById('epIntensidad').dispatchEvent(new Event('input'));
+      // Al editar no hay "Ahora mismo": se muestran la fecha y horas guardadas
+      elegir(epHoraModo, 'otra');
+      epHoraModo.hidden = true;
       if (!Number.isNaN(inicio.getTime())) {
-        epFecha.value = `${inicio.getFullYear()}-${pad(inicio.getMonth()+1)}-${pad(inicio.getDate())}`;
+        epFecha.value = fechaISO(inicio);
         epHoraInicio.value = hhmm(inicio);
-        // El servidor guarda la duración como rango: si no hay hora de fin exacta se usa un valor dentro del rango
-        const minutosRango = { menos_4h: 120, '4_24h': 360, '1_3d': 1439, mas_3d: 1439 }[r.duracion] || 60;
-        const fin = r.fin ? new Date(r.fin) : new Date(inicio.getTime() + (Number(r.duracionMinutos) || minutosRango)*60000);
-        epHoraFin.value = hhmm(fin);
-        actualizarDuracion();
+        if (r.enCurso) {
+          elegir(epFinModo, 'curso');
+        } else {
+          elegir(epFinModo, 'termino');
+          // Registros viejos solo tienen un rango de duración: se usa un valor dentro del rango
+          const minutosRango = { menos_4h: 120, '4_24h': 360, '1_3d': 1439, mas_3d: 1439 }[r.duracion] || 60;
+          const fin = r.fin ? new Date(conZonaLocal(r.fin)) : new Date(inicio.getTime() + (Number(r.duracionMinutos) || minutosRango)*60000);
+          epHoraFin.value = hhmm(fin);
+        }
       }
+      aplicarModos();
       // Para no cambiar la duración si la persona no toca las horas (p. ej. episodios de más de 1 día)
-      horasOriginales = [epFecha.value, epHoraInicio.value, epHoraFin.value].join('|');
+      horasOriginales = [epFecha.value, epHoraInicio.value, epHoraFin.value, getSingleValue(epFinModo)].join('|');
+      seleccionar(document.getElementById('epAura'), r.aura ? [r.aura] : []);
       seleccionar(epSintomas, (r.sintomas || []).length ? r.sintomas : ['ninguno']);
       seleccionar(epDisparadores, r.disparadores);
       seleccionar(document.getElementById('epMedicacion'), [r.medicacion ? 'si' : 'no']);
@@ -241,6 +309,7 @@ msAlCargar(() => {
       if (!Number.isNaN(inicio.getTime())) {
         seleccionar(prodHoraModo, ['otra']);
         prodHoraWrap.style.display = '';
+        prodFecha.value = fechaISO(inicio);
         prodHora.value = hhmm(inicio);
       }
       document.getElementById('saveProdromico').textContent = 'Guardar cambios';
@@ -257,16 +326,15 @@ msAlCargar(() => {
 
     const ahora = new Date();
     let aparicion = ahora;
-    // Al editar se conserva el DÍA original del registro y solo cambia la hora
     const original = registroEditado ? new Date(registroEditado.inicio || registroEditado.date) : null;
-    const base = original && !Number.isNaN(original.getTime()) ? original : ahora;
     if (getSingleValue(prodHoraModo) === 'otra') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(prodFecha.value)) { msToast('Indica la fecha de aparición', '⚠️'); return; }
       if (!/^\d{2}:\d{2}$/.test(prodHora.value)) { msToast('Indica la hora de aparición', '⚠️'); return; }
-      const [h, m] = prodHora.value.split(':').map(Number);
-      aparicion = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0, 0);
-      if (aparicion > ahora) aparicion.setDate(aparicion.getDate() - 1);   // hora futura = fue ayer
-    } else if (registroEditado) {
-      aparicion = base;
+      aparicion = new Date(`${prodFecha.value}T${prodHora.value}:00`);
+      if (Number.isNaN(aparicion.getTime())) { msToast('La fecha u hora no es válida', '⚠️'); return; }
+      if (aparicion.getTime() > ahora.getTime() + 60000) { msToast('La fecha y hora no pueden estar en el futuro', '⚠️'); return; }
+    } else if (original && !Number.isNaN(original.getTime())) {
+      aparicion = original;
     }
 
     guardar(document.getElementById('saveProdromico'), 'prodromico', {
@@ -278,14 +346,14 @@ msAlCargar(() => {
   });
 
   /* Envía el registro al servidor; si falla, el formulario queda tal cual para reintentar */
-  function guardar(btn, tipo, datos, mensaje) {
+  function guardar(btn, tipo, datos, mensaje, destino = 'historial.html') {
     if (btn.getAttribute('aria-busy') === 'true') return;
     const texto = btn.textContent;
     btn.setAttribute('aria-busy', 'true'); btn.textContent = 'Guardando…';
     (registroEditado ? MSApi.editarRegistro(registroEditado, datos) : MSApi.crearRegistro(tipo, datos))
       .then(() => {
         msToast(mensaje, '📝');
-        setTimeout(() => { window.location.href = 'historial.html'; }, 700);
+        setTimeout(() => { window.location.href = destino; }, 700);
       })
       .catch(err => {
         btn.removeAttribute('aria-busy'); btn.textContent = texto;
@@ -295,25 +363,55 @@ msAlCargar(() => {
 
   /* ---------- Guardar: episodio completo ---------- */
   document.getElementById('saveEpisodio').addEventListener('click', () => {
-    const t = tiemposEpisodio();
-    if (!t || t.minutos <= 0) { msToast('Indica una fecha y horas válidas, con duración mayor a cero', '⚠️'); return; }
-    if (t.inicio.getTime() > Date.now() || t.fin.getTime() > Date.now()) { msToast('El episodio no puede comenzar ni terminar en el futuro', '⚠️'); return; }
-    const inicio = t.inicio;
-    let duracion = t.minutos < 240 ? 'menos_4h' : t.minutos <= 1440 ? '4_24h' : t.minutos <= 4320 ? '1_3d' : 'mas_3d';
-    const horasSinCambios = registroEditado && horasOriginales === [epFecha.value, epHoraInicio.value, epHoraFin.value].join('|');
-    if (horasSinCambios && registroEditado.duracion) duracion = registroEditado.duracion;
+    const enCurso = getSingleValue(epFinModo) === 'curso';
+    if (enCurso && otraEnCurso) { msToast('Ya tienes una migraña en curso. Márcala como terminada en Inicio.', '⚠️'); return; }
+
+    // "Ahora mismo": la hora exacta del momento en que guarda
+    if (getSingleValue(epHoraModo) === 'ahora' && !registroEditado) {
+      const n = new Date(); epFecha.value = fechaISO(n); epHoraInicio.value = hhmm(n);
+    }
+    if (!epFecha.value || !epHoraInicio.value) { msToast('Indica la fecha y la hora en que comenzó', '⚠️'); return; }
+    const inicio = new Date(`${epFecha.value}T${epHoraInicio.value}:00`);
+    if (Number.isNaN(inicio.getTime())) { msToast('La fecha u hora de inicio no es válida', '⚠️'); return; }
+    if (inicio.getTime() > Date.now() + 60000) { msToast('La migraña no puede comenzar en el futuro', '⚠️'); return; }
+
     const medicacion = getSingleValue(document.getElementById('epMedicacion')) === 'si';
-    guardar(document.getElementById('saveEpisodio'), 'episodio', {
+    const datos = {
       intensidad: Number(document.getElementById('epIntensidad').value),
-      duracion,
-      fin: t.fin.toISOString(),
-      duracionMinutos: t.minutos,
       inicio: inicio.toISOString(),
+      aura: getSingleValue(document.getElementById('epAura')),   // si | no | no_se | null (sin responder)
       sintomas: getMultiValues(epSintomas).filter(s => s !== 'ninguno'),   // códigos (luz, cervical…); "Ningún síntoma" = lista vacía
       disparadores: getMultiValues(epDisparadores),
       medicacion,
       medicamento: medicacion ? document.getElementById('epMedNombre').value.trim() : '',
       notas: document.getElementById('epNotas').value.trim()
-    }, 'Episodio registrado');
+    };
+
+    if (enCurso) {
+      datos.en_curso = true;
+    } else {
+      const t = tiemposEpisodio();
+      if (!t || t.minutos <= 0) { msToast('Indica a qué hora terminó (distinta de la hora de inicio)', '⚠️'); return; }
+      if (t.fin.getTime() > Date.now() + 60000) { msToast('La migraña no puede terminar en el futuro. Si sigue, elige «Aún en curso».', '⚠️'); return; }
+      datos.en_curso = false;
+      datos.duracion = t.minutos < 240 ? 'menos_4h' : t.minutos <= 1440 ? '4_24h' : t.minutos <= 4320 ? '1_3d' : 'mas_3d';
+      const sinCambios = registroEditado && !registroEditado.fin && !registroEditado.enCurso &&
+        horasOriginales === [epFecha.value, epHoraInicio.value, epHoraFin.value, 'termino'].join('|');
+      if (sinCambios && registroEditado.duracion) {
+        datos.duracion = registroEditado.duracion;   // registro viejo sin hora de fin: se conserva su rango
+      } else {
+        datos.fin = t.fin.toISOString();
+      }
+    }
+
+    guardar(document.getElementById('saveEpisodio'), 'episodio', datos,
+      enCurso ? 'Migraña registrada. Cuando termine, márcalo en Inicio.' : 'Episodio registrado',
+      enCurso && !registroEditado ? 'dashboard.html' : 'historial.html');
   });
+
+  /* Estado inicial del formulario de episodio */
+  if (!registroEditado) aplicarModos();
 });
+
+/* Las fechas del servidor vienen en hora de Bolivia sin zona: se marcan -04:00 */
+function conZonaLocal(f) { return (f && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(f)) ? f + '-04:00' : f; }

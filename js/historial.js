@@ -35,6 +35,19 @@ msAlCargar(() => {
   const humanize = s => String(s || '').replace(/_/g, ' ');
   const fmtLong = iso => new Date(iso).toLocaleString('es-BO', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  const AURA_TXT = { si: 'Sí', no: 'No', no_se: 'No está seguro/a' };
+  /** Duración legible: exacta si hay hora de fin; "Aún en curso" si sigue */
+  function fmtDuracion(r) {
+    if (r.enCurso) return 'Aún en curso';
+    const m = Number(r.duracionMinutos);
+    if (r.fin && m === 0) return 'Menos de 1 min';
+    if (r.fin && m > 0) {
+      const d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
+      return [d ? `${d} d` : '', h ? `${h} h` : '', mm ? `${mm} min` : ''].filter(Boolean).join(' ');
+    }
+    return humanize(r.duracion);
+  }
+
   function fmtInicio(r) {
     if (!r.inicio) return '';
     const d = new Date(r.inicio);
@@ -226,14 +239,14 @@ msAlCargar(() => {
       item.className = 'record-item record-btn';
       item.dataset.id = r.id;
       const detalle = r.type === 'episodio'
-        ? `${esc((r.sintomas || []).slice(0, 2).join(', ') || 'Sin síntomas detallados')}${r.duracion ? ' · ' + esc(humanize(r.duracion)) : ''}`
+        ? `${esc((r.sintomas || []).slice(0, 2).join(', ') || 'Sin síntomas detallados')}${r.duracion || r.enCurso ? ' · ' + esc(fmtDuracion(r)) : ''}`
         : esc((r.sintomas || []).slice(0, 3).join(', ') || 'Sin detalle');
 
       item.innerHTML = `
         <div class="record-icon is-${r.type}">${ICONS[r.type] || ''}</div>
         <div class="record-body">
           <div class="record-top">
-            <span class="record-title">${esc(r.label)}</span>
+            <span class="record-title">${esc(r.label)}${r.enCurso ? '<span class="record-badge">En curso</span>' : ''}</span>
             <span class="record-date">${msFormatDate(r.date)}</span>
           </div>
           <p class="record-desc">${detalle}</p>
@@ -281,10 +294,12 @@ msAlCargar(() => {
     if (mode === 'ver') {
       html += `${tagFor(r.intensidad || 0)} <span class="small muted">Intensidad ${r.intensidad || '–'}/10</span>
         <div class="d-list">
-          ${row('Síntomas', esc((r.sintomas || []).join(', ')))}
+          ${row(ep ? 'Síntomas prodrómicos' : 'Síntomas', esc((r.sintomas || []).join(', ')))}
+          ${ep ? row('Con aura', esc(AURA_TXT[r.aura] || '')) : ''}
           ${row('Posibles desencadenantes', esc((r.disparadores || []).join(', ')))}
-          ${row('Duración', esc(humanize(r.duracion)))}
+          ${ep ? row('Duración', esc(fmtDuracion(r))) : ''}
           ${row(ep ? 'Inicio' : 'Hora de aparición', esc(fmtInicio(r)))}
+          ${ep && r.fin ? row('Terminó', esc(fmtLong(r.fin))) : ''}
           ${ep ? row('Medicación', r.medicacion ? esc(r.medicamento || 'Sí') : 'No tomó') : ''}
           ${row('Notas', esc(r.notas))}
         </div>
@@ -474,7 +489,8 @@ msAlCargar(() => {
       txt += `  Intensidad: ${r.intensidad}/10\n`;
       if (r.sintomas && r.sintomas.length) txt += `  Síntomas: ${r.sintomas.join(', ')}\n`;
       if (r.disparadores && r.disparadores.length) txt += `  Posibles desencadenantes: ${r.disparadores.join(', ')}\n`;
-      if (r.duracion) txt += `  Duración: ${humanize(r.duracion)}\n`;
+      if (r.duracion || r.enCurso) txt += `  Duración: ${fmtDuracion(r)}\n`;
+      if (r.aura) txt += `  Con aura: ${AURA_TXT[r.aura] || r.aura}\n`;
       if (r.medicacion) txt += `  Medicación tomada: ${r.medicamento || 'Sí'}\n`;
       if (r.notas) txt += `  Notas: ${r.notas}\n`;
       txt += `\n`;
