@@ -5,12 +5,12 @@ con predicción de riesgo mediante machine learning.
 
 **Equipo:** Los Backyardigans — UNIVALLE
 
-🌐 **Sitio:** https://miguelhuanca676-bot.github.io/migrasense/
+🌐 **Sitio:** https://migrasense.pages.dev/ (respaldo: https://miguelhuanca676-bot.github.io/migrasense/)
 
 ## Arquitectura
 
 ```
-Navegador (este repositorio, GitHub Pages)
+Navegador (este repositorio, Cloudflare Pages · respaldo GitHub Pages)
    │  HTTPS + token Bearer (Sanctum)
    ▼
 API Laravel (Render)  ── TLS ──►  MySQL (Aiven)
