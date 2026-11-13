@@ -39,6 +39,7 @@ on:
           - enviar            # arranca la guardia continua (si ya hay una, no hace nada)
           - probar-avisos     # manda AHORA los 3 avisos de prueba a una cuenta
           - probar-correo     # manda un correo de prueba y dice qué proveedor lo envió
+          - historial         # últimos 25 envíos (sin correos): para ver qué salió y qué no
       correo:
         description: 'Correo de la cuenta (solo para las pruebas)'
         required: false
@@ -163,6 +164,9 @@ jobs:
             probar-avisos)
               [ -z "$CORREO" ] && { echo "::error::Escribe el correo de la cuenta en el campo «correo»."; exit 1; }
               php artisan migrasense:probar-avisos "$CORREO" 2>&1 | ocultar | tee salida.txt
+              exit $? ;;
+            historial)
+              php artisan migrasense:enviar-recordatorios --historial 2>&1 | ocultar | tee salida.txt
               exit $? ;;
             probar-correo)
               [ -z "$CORREO" ] && { echo "::error::Escribe el correo de destino en el campo «correo»."; exit 1; }
