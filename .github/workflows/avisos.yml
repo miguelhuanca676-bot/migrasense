@@ -1,0 +1,153 @@
+# ======================================================================================
+#  MOTOR DE AVISOS DE MIGRASENSE
+#  Cada 5 minutos envía lo que toca: recordatorio diario, resumen semanal (notificación +
+#  PDF por correo) y alerta de posible migraña.
+#
+#  Corre en los servidores de GitHub y se conecta DIRECTO a la base de datos (Aiven):
+#  no pasa por la API de Render, así que funciona aunque Render esté dormido o caído, y
+#  tampoco depende de cron-job.org. Usa el mismo código del backend (repo oficial, rama main).
+#
+#  Necesita 2 secretos en este repo (Settings → Secrets and variables → Actions):
+#    MIGRASENSE_ENV   el contenido del archivo .env del backend (las mismas variables de Render)
+#    AIVEN_CA_PEM     el contenido del certificado ca.pem de Aiven
+#  Mientras falten, el motor no hace nada (y no marca error).
+#
+#  Nunca se envía dos veces: cada aviso se anota en la tabla envio_recordatorio antes de salir.
+#  Los registros de este repo son públicos: la salida no muestra nombres, correos ni claves.
+# ======================================================================================
+name: Motor de avisos
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: 'Qué hacer'
+        type: choice
+        default: enviar
+        options:
+          - enviar            # lo mismo que hace solo cada 5 minutos
+          - probar-avisos     # manda AHORA los 3 avisos de prueba a una cuenta
+          - probar-correo     # manda un correo de prueba y dice qué proveedor lo envió
+      correo:
+        description: 'Correo de la cuenta (solo para las pruebas)'
+        required: false
+
+permissions:
+  contents: read
+
+# Si una vuelta se atrasa, la siguiente espera: nunca corren dos a la vez
+concurrency:
+  group: motor-avisos
+  cancel-in-progress: false
+
+jobs:
+  avisos:
+    name: Enviar avisos
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      BACKEND_REPO: jose-14-mvj/Proyecto-De-Sistemas
+      BACKEND_RAMA: main
+      APP_ENV: production
+      APP_DEBUG: 'false'
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: warning
+      CACHE_DRIVER: file
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MYSQL_ATTR_SSL_CA: ${{ github.workspace }}/Backend_Laravel/storage/ca.pem
+    steps:
+      - name: ¿Están los secretos?
+        id: listo
+        env:
+          MIGRASENSE_ENV: ${{ secrets.MIGRASENSE_ENV }}
+          AIVEN_CA_PEM: ${{ secrets.AIVEN_CA_PEM }}
+        run: |
+          if [ -z "$MIGRASENSE_ENV" ] || [ -z "$AIVEN_CA_PEM" ]; then
+            echo "::warning::Faltan los secretos MIGRASENSE_ENV y/o AIVEN_CA_PEM. El motor de avisos no envió nada."
+            echo "ok=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=si" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Descargar el backend (repo oficial)
+        if: steps.listo.outputs.ok == 'si'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.BACKEND_REPO }}
+          ref: ${{ env.BACKEND_RAMA }}
+          sparse-checkout: Backend_Laravel
+          persist-credentials: false
+
+      - name: PHP 8.2
+        if: steps.listo.outputs.ok == 'si'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_mysql, openssl, curl
+          coverage: none
+          tools: composer:v2
+
+      - name: Caché de dependencias
+        if: steps.listo.outputs.ok == 'si'
+        id: vendor
+        uses: actions/cache@v4
+        with:
+          path: Backend_Laravel/vendor
+          key: vendor-${{ hashFiles('Backend_Laravel/composer.lock') }}
+
+      - name: Instalar dependencias (solo si cambiaron)
+        if: steps.listo.outputs.ok == 'si' && steps.vendor.outputs.cache-hit != 'true'
+        working-directory: Backend_Laravel
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist
+
+      - name: Configuración (desde los secretos)
+        if: steps.listo.outputs.ok == 'si'
+        working-directory: Backend_Laravel
+        env:
+          MIGRASENSE_ENV: ${{ secrets.MIGRASENSE_ENV }}
+          AIVEN_CA_PEM: ${{ secrets.AIVEN_CA_PEM }}
+        run: |
+          umask 077
+          printf '%s\n' "$MIGRASENSE_ENV" | tr -d '\r' > .env
+          printf '%s\n' "$AIVEN_CA_PEM" | tr -d '\r' > storage/ca.pem
+          # Oculta en los registros cualquier valor sensible del .env
+          while IFS= read -r linea; do
+            case "$linea" in ''|\#*) continue ;; esac
+            clave="${linea%%=*}"; valor="${linea#*=}"; valor="${valor%\"}"; valor="${valor#\"}"
+            if echo "$clave" | grep -Eq 'PASSWORD|KEY|SECRETO|CLAVE|HOST|USERNAME|APPSSCRIPT_URL|REMITENTE$|SUBJECT' && [ "${#valor}" -ge 6 ]; then
+              echo "::add-mask::$valor"
+            fi
+          done < .env
+          grep -q '^APP_KEY=base64:' .env || echo "APP_KEY=base64:$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          php artisan config:clear > /dev/null
+
+      - name: Enviar
+        if: steps.listo.outputs.ok == 'si'
+        working-directory: Backend_Laravel
+        env:
+          ACCION: ${{ github.event.inputs.accion || 'enviar' }}
+          CORREO: ${{ github.event.inputs.correo }}
+        run: |
+          set -o pipefail
+          [ -n "$CORREO" ] && echo "::add-mask::$CORREO"
+          ocultar() { sed -u -E 's/[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}/[correo oculto]/g'; }
+          case "$ACCION" in
+            probar-avisos)
+              [ -z "$CORREO" ] && { echo "::error::Escribe el correo de la cuenta en el campo «correo»."; exit 1; }
+              php artisan migrasense:probar-avisos "$CORREO" 2>&1 | ocultar | tee salida.txt ;;
+            probar-correo)
+              [ -z "$CORREO" ] && { echo "::error::Escribe el correo de destino en el campo «correo»."; exit 1; }
+              php artisan migrasense:probar-correo "$CORREO" 2>&1 | ocultar | tee salida.txt ;;
+            *)
+              php artisan migrasense:enviar-recordatorios 2>&1 | ocultar | tee salida.txt ;;
+          esac
+
+      - name: Resumen
+        if: always() && steps.listo.outputs.ok == 'si'
+        working-directory: Backend_Laravel
+        run: |
+          { echo '### Motor de avisos'; echo '```'; cat salida.txt 2>/dev/null || echo 'Sin salida (falló antes de enviar).'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          rm -f .env storage/ca.pem
