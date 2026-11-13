@@ -1,11 +1,20 @@
 # ======================================================================================
 #  MOTOR DE AVISOS DE MIGRASENSE
-#  Cada 5 minutos envía lo que toca: recordatorio diario, resumen semanal (notificación +
-#  PDF por correo) y alerta de posible migraña.
+#  Envía lo que toca: recordatorio diario, resumen semanal (notificación + PDF por correo)
+#  y alerta de posible migraña.
 #
 #  Corre en los servidores de GitHub y se conecta DIRECTO a la base de datos (Aiven):
 #  no pasa por la API de Render, así que funciona aunque Render esté dormido o caído, y
 #  tampoco depende de cron-job.org. Usa el mismo código del backend (repo oficial, rama main).
+#
+#  CÓMO SE MANTIENE ENCENDIDO (guardia continua)
+#  El programador «schedule» de GitHub no es confiable: en este repo pasaron casi 2 horas
+#  sin que disparara ni una sola vez. Por eso el motor no depende de él:
+#    - Una vuelta se queda de GUARDIA unos 55 minutos y revisa cada 2 minutos qué toca enviar.
+#    - Al terminar, ella misma lanza a su RELEVO (otra vuelta igual) y así sigue día y noche.
+#    - El «schedule» queda solo como resucitador: si la cadena se corta, la vuelve a arrancar.
+#    - Nunca hay dos guardias a la vez: la que llega y encuentra otra más antigua, se retira.
+#  Para detenerlo del todo: Actions → Motor de avisos → «···» → Disable workflow.
 #
 #  Necesita 2 secretos en este repo (Settings → Secrets and variables → Actions):
 #    MIGRASENSE_ENV   el contenido del archivo .env del backend (las mismas variables de Render)
@@ -19,7 +28,7 @@ name: Motor de avisos
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '7,22,37,52 * * * *'     # resucitador: si ya hay una guardia, esta se retira en segundos
   workflow_dispatch:
     inputs:
       accion:
@@ -27,29 +36,31 @@ on:
         type: choice
         default: enviar
         options:
-          - enviar            # lo mismo que hace solo cada 5 minutos
+          - enviar            # arranca la guardia continua (si ya hay una, no hace nada)
           - probar-avisos     # manda AHORA los 3 avisos de prueba a una cuenta
           - probar-correo     # manda un correo de prueba y dice qué proveedor lo envió
       correo:
         description: 'Correo de la cuenta (solo para las pruebas)'
         required: false
+      relevo:
+        description: 'Uso interno (no llenar)'
+        required: false
 
 permissions:
   contents: read
-
-# Si una vuelta se atrasa, la siguiente espera: nunca corren dos a la vez
-concurrency:
-  group: motor-avisos
-  cancel-in-progress: false
+  actions: write      # para ver si ya hay una guardia y para lanzar el relevo
 
 jobs:
   avisos:
     name: Enviar avisos
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 75
     env:
       BACKEND_REPO: jose-14-mvj/Proyecto-De-Sistemas
       BACKEND_RAMA: main
+      GUARDIA_MINUTOS: 55        # cuánto dura cada guardia antes de pasar el relevo
+      GUARDIA_CADA_SEGUNDOS: 120 # cada cuánto revisa qué toca enviar
+      ACCION: ${{ github.event.inputs.accion || 'enviar' }}
       APP_ENV: production
       APP_DEBUG: 'false'
       LOG_CHANNEL: stderr
@@ -59,18 +70,33 @@ jobs:
       QUEUE_CONNECTION: sync
       MYSQL_ATTR_SSL_CA: ${{ github.workspace }}/Backend_Laravel/storage/ca.pem
     steps:
-      - name: ¿Están los secretos?
+      - name: ¿Están los secretos? ¿Ya hay otra guardia?
         id: listo
         env:
           MIGRASENSE_ENV: ${{ secrets.MIGRASENSE_ENV }}
           AIVEN_CA_PEM: ${{ secrets.AIVEN_CA_PEM }}
+          GH_TOKEN: ${{ github.token }}
+          RELEVO_DE: ${{ github.event.inputs.relevo }}
         run: |
           if [ -z "$MIGRASENSE_ENV" ] || [ -z "$AIVEN_CA_PEM" ]; then
             echo "::warning::Faltan los secretos MIGRASENSE_ENV y/o AIVEN_CA_PEM. El motor de avisos no envió nada."
-            echo "ok=no" >> "$GITHUB_OUTPUT"
-          else
-            echo "ok=si" >> "$GITHUB_OUTPUT"
+            echo "ok=no" >> "$GITHUB_OUTPUT"; exit 0
           fi
+          if [ "$ACCION" = "enviar" ]; then
+            # Otras vueltas de este motor que siguen vivas y son MÁS ANTIGUAS que esta
+            # (no cuenta la que me pasó el relevo: esa está terminando). Las pruebas manuales tampoco.
+            otras=0
+            for estado in in_progress queued; do
+              n=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/avisos.yml/runs?status=$estado&per_page=50" \
+                    --jq "[.workflow_runs[] | select(.id < $GITHUB_RUN_ID) | select((.id|tostring) != \"${RELEVO_DE:-0}\") | select(.run_started_at > (now - 5400 | todate))] | length" 2>/dev/null || echo 0)
+              otras=$((otras + n))
+            done
+            if [ "$otras" -gt 0 ]; then
+              echo "::notice::Ya hay una guardia del motor de avisos en marcha. Esta vuelta se retira (es lo normal)."
+              echo "ok=otra" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          fi
+          echo "ok=si" >> "$GITHUB_OUTPUT"
 
       - name: Descargar el backend (repo oficial)
         if: steps.listo.outputs.ok == 'si'
@@ -124,11 +150,10 @@ jobs:
           grep -q '^APP_KEY=base64:' .env || echo "APP_KEY=base64:$(openssl rand -base64 32)" >> "$GITHUB_ENV"
           php artisan config:clear > /dev/null
 
-      - name: Enviar
+      - name: Enviar (guardia continua) o prueba
         if: steps.listo.outputs.ok == 'si'
         working-directory: Backend_Laravel
         env:
-          ACCION: ${{ github.event.inputs.accion || 'enviar' }}
           CORREO: ${{ github.event.inputs.correo }}
         run: |
           set -o pipefail
@@ -137,17 +162,59 @@ jobs:
           case "$ACCION" in
             probar-avisos)
               [ -z "$CORREO" ] && { echo "::error::Escribe el correo de la cuenta en el campo «correo»."; exit 1; }
-              php artisan migrasense:probar-avisos "$CORREO" 2>&1 | ocultar | tee salida.txt ;;
+              php artisan migrasense:probar-avisos "$CORREO" 2>&1 | ocultar | tee salida.txt
+              exit $? ;;
             probar-correo)
               [ -z "$CORREO" ] && { echo "::error::Escribe el correo de destino en el campo «correo»."; exit 1; }
-              php artisan migrasense:probar-correo "$CORREO" 2>&1 | ocultar | tee salida.txt ;;
-            *)
-              php artisan migrasense:enviar-recordatorios 2>&1 | ocultar | tee salida.txt ;;
+              php artisan migrasense:probar-correo "$CORREO" 2>&1 | ocultar | tee salida.txt
+              exit $? ;;
           esac
+
+          # ---- Guardia: revisa cada GUARDIA_CADA_SEGUNDOS durante GUARDIA_MINUTOS ----
+          fin=$(( $(date +%s) + GUARDIA_MINUTOS * 60 ))
+          vueltas=0; fallos=0
+          : > salida.txt
+          while :; do
+            inicio=$(date +%s)
+            vueltas=$((vueltas + 1))
+            if php artisan migrasense:enviar-recordatorios > vuelta.txt 2>&1; then :; else fallos=$((fallos + 1)); fi
+            # En el registro solo queda lo que importa: envíos, alertas y errores (sin datos personales)
+            { ocultar < vuelta.txt | grep -Ev '^\s*$|^#[0-9]+ |stacktrace|^\{main\}' | cut -c1-400 | head -12 | tee -a salida.txt; } || true
+            [ "$(date +%s)" -ge "$fin" ] && break
+            espera=$(( GUARDIA_CADA_SEGUNDOS - ( $(date +%s) - inicio ) ))
+            [ "$espera" -gt 0 ] && sleep "$espera"
+          done
+          echo "Guardia terminada: $vueltas revisiones, $fallos con error." | tee -a salida.txt
+          # Si TODAS fallaron (base de datos caída, claves mal), la vuelta se marca en rojo para que se note
+          [ "$fallos" -lt "$vueltas" ]
+
+      - name: Pasar el relevo a la siguiente guardia
+        if: ${{ !cancelled() && steps.listo.outputs.ok == 'si' && env.ACCION == 'enviar' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for intento in 1 2 3; do
+            if gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/avisos.yml/dispatches" \
+                 -f ref="${GITHUB_REF_NAME:-main}" -f "inputs[accion]=enviar" -f "inputs[relevo]=$GITHUB_RUN_ID"; then
+              echo "Relevo lanzado."; exit 0
+            fi
+            sleep 20
+          done
+          echo "::warning::No se pudo lanzar el relevo. El programador de respaldo arrancará otra guardia."
 
       - name: Resumen
         if: always() && steps.listo.outputs.ok == 'si'
         working-directory: Backend_Laravel
         run: |
-          { echo '### Motor de avisos'; echo '```'; cat salida.txt 2>/dev/null || echo 'Sin salida (falló antes de enviar).'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '### Motor de avisos'
+            echo '```'
+            if [ "$ACCION" = "enviar" ]; then
+              echo "Envíos de esta guardia (las revisiones sin nada que enviar no se listan):"
+              grep -Ev 'Diarios enviados: 0 · Semanales: 0 · Omitidos \(ya registró hoy\): 0 · Errores: 0|Alertas de migraña enviadas: 0 .*Estado: ok$' salida.txt 2>/dev/null | tail -60 || true
+            else
+              cat salida.txt 2>/dev/null || echo 'Sin salida (falló antes de enviar).'
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           rm -f .env storage/ca.pem
